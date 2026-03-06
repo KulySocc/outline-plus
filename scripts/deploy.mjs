@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import process from "node:process";
 
 const TARGET_DIR = path.resolve(
 	"/Users/nicodobler/Library/Mobile Documents/iCloud~md~obsidian/Documents/Obsidian/.obsidian/plugins/outline-plus/",

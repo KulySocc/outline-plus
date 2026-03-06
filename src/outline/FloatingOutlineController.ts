@@ -109,7 +109,6 @@ export class FloatingOutlineController {
 		const shouldHide = !enabled || !hasValidMarkdownView || !hasVisibleItems || belowBreakpoint || hasUnsafeLayout;
 
 		this.rootEl.classList.toggle("is-hidden", shouldHide);
-		this.rootEl.style.display = shouldHide ? "none" : "";
 	}
 
 	renderList(headings: ParsedHeading[]): void {
@@ -346,7 +345,7 @@ export class FloatingOutlineController {
 			return false;
 		}
 
-		return this.rootEl.style.display !== "none" && !this.rootEl.classList.contains("is-hidden");
+		return !this.rootEl.classList.contains("is-hidden");
 	}
 
 	private applyAlignmentPosition(): void {
@@ -359,8 +358,7 @@ export class FloatingOutlineController {
 		const edgeOffset = 12;
 		const contentGap = 12;
 
-		this.rootEl.style.left = "";
-		this.rootEl.style.right = "";
+		this.rootEl.setCssProps({ left: "", right: "" });
 
 		if (alignment === "to-content") {
 			const contentAnchor = this.getContentAnchorElement();
@@ -368,25 +366,25 @@ export class FloatingOutlineController {
 				const leafRect = this.activeLeafContainer.getBoundingClientRect();
 				const contentRect = contentAnchor.getBoundingClientRect();
 
-				if (side === "right") {
-					const left = Math.max(edgeOffset, Math.round(contentRect.right - leafRect.left + contentGap));
-					this.rootEl.style.left = `${left}px`;
+					if (side === "right") {
+						const left = Math.max(edgeOffset, Math.round(contentRect.right - leafRect.left + contentGap));
+						this.rootEl.setCssProps({ left: `${left}px`, right: "" });
+						return;
+					}
+
+					const right = Math.max(edgeOffset, Math.round(leafRect.right - contentRect.left + contentGap));
+					this.rootEl.setCssProps({ left: "", right: `${right}px` });
 					return;
 				}
+			}
 
-				const right = Math.max(edgeOffset, Math.round(leafRect.right - contentRect.left + contentGap));
-				this.rootEl.style.right = `${right}px`;
+			if (side === "right") {
+				this.rootEl.setCssProps({ left: "", right: `${edgeOffset}px` });
 				return;
 			}
-		}
 
-		if (side === "right") {
-			this.rootEl.style.right = `${edgeOffset}px`;
-			return;
+			this.rootEl.setCssProps({ left: `${edgeOffset}px`, right: "" });
 		}
-
-		this.rootEl.style.left = `${edgeOffset}px`;
-	}
 
 	private getContentAnchorElement(): HTMLElement | null {
 		if (!this.activeView) {
@@ -423,17 +421,8 @@ export class FloatingOutlineController {
 
 		const side = this.plugin.settings.floatingOutlineSide;
 		const minGap = 10;
-		const previousDisplay = this.rootEl.style.display;
-		if (previousDisplay === "none") {
-			// Ensure width/offset measurements stay accurate even while hidden.
-			this.rootEl.style.display = "";
-		}
-
 		const width = this.rootEl.offsetWidth;
 		if (width <= 0) {
-			if (previousDisplay === "none") {
-				this.rootEl.style.display = previousDisplay;
-			}
 			return false;
 		}
 
@@ -459,17 +448,11 @@ export class FloatingOutlineController {
 
 		const right = left + width;
 		if (left < 0 || right > leafWidth) {
-			if (previousDisplay === "none") {
-				this.rootEl.style.display = previousDisplay;
-			}
 			return true;
 		}
 
 		const contentAnchor = this.getContentAnchorElement();
 		if (!contentAnchor) {
-			if (previousDisplay === "none") {
-				this.rootEl.style.display = previousDisplay;
-			}
 			return false;
 		}
 
@@ -479,16 +462,10 @@ export class FloatingOutlineController {
 
 		if (side === "right") {
 			const overlaps = left < contentRight + minGap;
-			if (previousDisplay === "none") {
-				this.rootEl.style.display = previousDisplay;
-			}
 			return overlaps;
 		}
 
 		const overlaps = right > contentLeft - minGap;
-		if (previousDisplay === "none") {
-			this.rootEl.style.display = previousDisplay;
-		}
 		return overlaps;
 	}
 

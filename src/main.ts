@@ -91,7 +91,7 @@ export default class QuickHeadingPalettePlugin extends Plugin {
 
 		const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
 		if (!activeView?.editor) {
-			new Notice("Open a Markdown note to use Heading Palette.");
+			new Notice("Open a Markdown note to use the heading palette.");
 			return;
 		}
 
