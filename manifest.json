@@ -1,0 +1,11 @@
+{
+	"id": "outline-plus",
+	"name": "Outline Plus",
+	"version": "1.0.0",
+	"minAppVersion": "0.15.0",
+	"description": "Open a quick palette to search headings in the active note and jump instantly.",
+	"author": "Obsidian",
+	"authorUrl": "https://obsidian.md",
+	"fundingUrl": "https://obsidian.md/pricing",
+	"isDesktopOnly": false
+}
