@@ -1,0 +1,47 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Repository auschecken
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Node.js für den Plugin-Build einrichten
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # Abhängigkeiten aus package-lock.json installieren
+      - name: Install dependencies
+        run: npm ci
+
+      # Plugin bauen; hier entsteht main.js
+      - name: Build plugin
+        run: npm run build
+
+      # Release-Dateien sammeln
+      - name: Prepare release assets
+        shell: bash
+        run: |
+          mkdir release
+          cp manifest.json release/
+          cp main.js release/
+          [ -f styles.css ] && cp styles.css release/ || true
+
+      # Dateien an die bestehende GitHub Release anhängen
+      - name: Upload release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload ${{ github.event.release.tag_name }} release/* --clobber
