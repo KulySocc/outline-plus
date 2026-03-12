@@ -1,4 +1,5 @@
 import { App, PluginSettingTab, Setting } from "obsidian";
+import * as Obsidian from "obsidian";
 import type QuickHeadingPalettePlugin from "../main";
 
 type PaletteLevelKey =
@@ -16,6 +17,16 @@ type FloatingOutlineLevelKey =
 	| "floatingOutlineShowH5"
 	| "floatingOutlineShowH6";
 
+interface SettingGroupLike {
+	addSetting(callback: (setting: Setting) => Setting): SettingGroupLike;
+}
+
+const SettingGroupCtor = (
+	Obsidian as unknown as {
+		SettingGroup?: new (containerEl: HTMLElement) => SettingGroupLike;
+	}
+).SettingGroup;
+
 export class HeadingPaletteSettingTab extends PluginSettingTab {
 	private plugin: QuickHeadingPalettePlugin;
 
@@ -28,46 +39,74 @@ export class HeadingPaletteSettingTab extends PluginSettingTab {
 		const { containerEl } = this;
 		containerEl.empty();
 
-		new Setting(containerEl).setName("Heading palette levels").setHeading();
+		new Setting(containerEl)
+			.setName("Heading palette levels")
+			.setDesc(
+				"Choose which heading levels appear in the command palette by default.",
+			)
+			.setHeading();
+
+		const hiddenHeadingsSetting = new Setting(containerEl)
+			.setName("Find hidden headings while searching")
+			.setDesc(
+				"Allow headings hidden by the palette level filters to appear once you type a search query.",
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.searchHiddenHeadings)
+					.onChange(async (value) => {
+						this.plugin.settings.searchHiddenHeadings = value;
+						await this.plugin.saveSettings();
+					}),
+			);
+		hiddenHeadingsSetting.settingEl.addClass(
+			"outline-plus-settings-after-group",
+		);
+		const paletteLevelsContainer = this.createLevelGroup(containerEl);
 
 		this.addPaletteLevelToggle(
-			containerEl,
+			paletteLevelsContainer,
 			"Show H1",
 			"Include level-1 headings in palette results.",
 			"showH1",
 		);
 		this.addPaletteLevelToggle(
-			containerEl,
+			paletteLevelsContainer,
 			"Show H2",
 			"Include level-2 headings in palette results.",
 			"showH2",
 		);
 		this.addPaletteLevelToggle(
-			containerEl,
+			paletteLevelsContainer,
 			"Show H3",
 			"Include level-3 headings in palette results.",
 			"showH3",
 		);
 		this.addPaletteLevelToggle(
-			containerEl,
+			paletteLevelsContainer,
 			"Show H4",
 			"Include level-4 headings in palette results.",
 			"showH4",
 		);
 		this.addPaletteLevelToggle(
-			containerEl,
+			paletteLevelsContainer,
 			"Show H5",
 			"Include level-5 headings in palette results.",
 			"showH5",
 		);
 		this.addPaletteLevelToggle(
-			containerEl,
+			paletteLevelsContainer,
 			"Show H6",
 			"Include level-6 headings in palette results.",
 			"showH6",
 		);
 
-		new Setting(containerEl).setName("Floating outline").setHeading();
+		new Setting(containerEl)
+			.setName("Floating outline")
+			.setDesc(
+				"Adjust the persistent heading list shown next to the active note.",
+			)
+			.setHeading();
 
 		new Setting(containerEl)
 			.setName("Enable floating outline")
@@ -136,80 +175,111 @@ export class HeadingPaletteSettingTab extends PluginSettingTab {
 					}),
 			);
 
+		const floatingLevelsContainer = this.createLevelGroup(containerEl);
+
 		this.addFloatingLevelToggle(
-			containerEl,
+			floatingLevelsContainer,
 			"Show H1",
 			"Include level-1 headings in floating outline results.",
 			"floatingOutlineShowH1",
 		);
 		this.addFloatingLevelToggle(
-			containerEl,
+			floatingLevelsContainer,
 			"Show H2",
 			"Include level-2 headings in floating outline results.",
 			"floatingOutlineShowH2",
 		);
 		this.addFloatingLevelToggle(
-			containerEl,
+			floatingLevelsContainer,
 			"Show H3",
 			"Include level-3 headings in floating outline results.",
 			"floatingOutlineShowH3",
 		);
 		this.addFloatingLevelToggle(
-			containerEl,
+			floatingLevelsContainer,
 			"Show H4",
 			"Include level-4 headings in floating outline results.",
 			"floatingOutlineShowH4",
 		);
 		this.addFloatingLevelToggle(
-			containerEl,
+			floatingLevelsContainer,
 			"Show H5",
 			"Include level-5 headings in floating outline results.",
 			"floatingOutlineShowH5",
 		);
 		this.addFloatingLevelToggle(
-			containerEl,
+			floatingLevelsContainer,
 			"Show H6",
 			"Include level-6 headings in floating outline results.",
 			"floatingOutlineShowH6",
 		);
 	}
 
-	private addPaletteLevelToggle(
+	private createLevelGroup(containerEl: HTMLElement): SettingGroupLike {
+		if (SettingGroupCtor) {
+			return new SettingGroupCtor(containerEl);
+		}
+
+		const fallbackEl = containerEl.createDiv({ cls: "setting-item-group" });
+		return {
+			addSetting: (callback) => {
+				callback(new Setting(fallbackEl));
+				return this.createLevelGroupFromElement(fallbackEl);
+			},
+		};
+	}
+
+	private createLevelGroupFromElement(
 		containerEl: HTMLElement,
+	): SettingGroupLike {
+		return {
+			addSetting: (callback) => {
+				callback(new Setting(containerEl));
+				return this.createLevelGroupFromElement(containerEl);
+			},
+		};
+	}
+
+	private addPaletteLevelToggle(
+		containerEl: SettingGroupLike,
 		name: string,
 		description: string,
 		key: PaletteLevelKey,
 	): void {
-		new Setting(containerEl)
-			.setName(name)
-			.setDesc(description)
-			.addToggle((toggle) =>
-				toggle
-					.setValue(this.plugin.settings[key])
-					.onChange(async (value) => {
-						this.plugin.settings[key] = value;
-						await this.plugin.saveSettings();
-					}),
-			);
+		containerEl.addSetting((setting) =>
+			setting
+				.setName(name)
+				.setDesc(description)
+				.addToggle((toggle) =>
+					toggle
+						.setValue(this.plugin.settings[key])
+						.onChange(async (value) => {
+							this.plugin.settings[key] = value;
+							await this.plugin.saveSettings();
+						}),
+				),
+		);
 	}
 
 	private addFloatingLevelToggle(
-		containerEl: HTMLElement,
+		containerEl: SettingGroupLike,
 		name: string,
 		description: string,
 		key: FloatingOutlineLevelKey,
 	): void {
-		new Setting(containerEl)
-			.setName(name)
-			.setDesc(description)
-			.addToggle((toggle) =>
-				toggle
-					.setValue(this.plugin.settings[key])
-					.onChange(async (value) => {
-						this.plugin.settings[key] = value;
-						await this.plugin.saveSettings();
-						this.plugin.refreshFloatingOutline();
-					}),
-			);
+		containerEl.addSetting((setting) =>
+			setting
+				.setName(name)
+				.setDesc(description)
+				.addToggle((toggle) =>
+					toggle
+						.setValue(this.plugin.settings[key])
+						.onChange(async (value) => {
+							this.plugin.settings[key] = value;
+							await this.plugin.saveSettings();
+							this.plugin.refreshFloatingOutline();
+						}),
+				),
+		);
 	}
 }

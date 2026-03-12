@@ -22,6 +22,8 @@ interface AppWithHotkeyManager extends App {
 export class HeadingPaletteModal extends FuzzySuggestModal<ParsedHeading> {
 	private readonly view: MarkdownView;
 	private readonly items: ParsedHeading[];
+	private readonly searchableItems: ParsedHeading[];
+	private readonly searchHiddenHeadings: boolean;
 	private readonly onModalClose?: () => void;
 	private readonly toggleCommandId?: string;
 	private readonly initialActiveHeadingId: string | null;
@@ -29,6 +31,7 @@ export class HeadingPaletteModal extends FuzzySuggestModal<ParsedHeading> {
 	private hasAppliedInitialSelection = false;
 	private prefixByHeadingId = new Map<string, string>();
 	private topLevelHeadingIds = new Set<string>();
+	private activeQuery = "";
 
 	private readonly onAdvancedArrowKeydown = (event: KeyboardEvent): void => {
 		if (event.key !== "ArrowDown" && event.key !== "ArrowUp") {
@@ -58,6 +61,8 @@ export class HeadingPaletteModal extends FuzzySuggestModal<ParsedHeading> {
 		const headings = parseHeadings(this.view.editor.getValue());
 		const enabledLevels = getEnabledHeadingLevels(options.settings);
 		this.items = filterHeadingsByLevels(headings, enabledLevels);
+		this.searchableItems = headings;
+		this.searchHiddenHeadings = options.settings.searchHiddenHeadings;
 		const activeLine = getActiveDocumentLine(this.view, headings);
 		const initialHeading = activeLine === null
 			? null
@@ -83,6 +88,10 @@ export class HeadingPaletteModal extends FuzzySuggestModal<ParsedHeading> {
 	}
 
 	getItems(): ParsedHeading[] {
+		if (this.searchHiddenHeadings && this.activeQuery.trim().length > 0) {
+			return this.searchableItems;
+		}
+
 		return this.items;
 	}
 
@@ -91,6 +100,7 @@ export class HeadingPaletteModal extends FuzzySuggestModal<ParsedHeading> {
 	}
 
 	getSuggestions(query: string): FuzzyMatch<ParsedHeading>[] {
+		this.activeQuery = query;
 		const matches = super.getSuggestions(query);
 		const items = matches.map((match) => match.item);
 		this.prefixByHeadingId = buildTreePrefixes(items);

@@ -124,6 +124,10 @@
 	font-weight: 600;
 }
 
+.outline-plus-settings-after-group {
+	margin-top: 0.75rem;
+}
+
 .outline-plus-floating-outline {
 	position: absolute;
 	top: 56px;
