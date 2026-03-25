@@ -1,6 +1,6 @@
 {
 	"name": "outline-plus",
-	"version": "1.0.1",
+	"version": "1.0.2",
 	"description": "Quick heading navigation palette for Obsidian",
 	"main": "main.js",
 	"type": "module",
