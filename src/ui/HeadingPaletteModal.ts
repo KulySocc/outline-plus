@@ -101,7 +101,7 @@ export class HeadingPaletteModal extends FuzzySuggestModal<ParsedHeading> {
 
 	getSuggestions(query: string): FuzzyMatch<ParsedHeading>[] {
 		this.activeQuery = query;
-		const matches = super.getSuggestions(query);
+		const matches = sortMatchesByDocumentOrder(super.getSuggestions(query), query);
 		const items = matches.map((match) => match.item);
 		this.prefixByHeadingId = buildTreePrefixes(items);
 
@@ -283,6 +283,33 @@ export class HeadingPaletteModal extends FuzzySuggestModal<ParsedHeading> {
 		this.hasAppliedInitialSelection = true;
 	}
 
+}
+
+function sortMatchesByDocumentOrder(
+	matches: FuzzyMatch<ParsedHeading>[],
+	query: string,
+): FuzzyMatch<ParsedHeading>[] {
+	if (query.trim().length === 0 || matches.length <= 1) {
+		return matches;
+	}
+
+	const [topMatch, ...remainingMatches] = matches;
+	if (!topMatch || remainingMatches.length === 0) {
+		return matches;
+	}
+
+	const sortedRemaining = remainingMatches
+		.map((match, index) => ({ match, index }))
+		.sort((a, b) => {
+			const lineDifference = a.match.item.line - b.match.item.line;
+			if (lineDifference !== 0) {
+				return lineDifference;
+			}
+			return a.index - b.index;
+		})
+		.map(({ match }) => match);
+
+	return [topMatch, ...sortedRemaining];
 }
 
 function buildTreePrefixes(items: ParsedHeading[]): Map<string, string> {
