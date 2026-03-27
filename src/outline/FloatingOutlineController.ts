@@ -5,6 +5,13 @@ import { filterHeadingsByLevels, type HeadingLevel, parseHeadings, type ParsedHe
 import { getEnabledFloatingOutlineLevels } from "../settings/settings";
 import type QuickHeadingPalettePlugin from "../main";
 
+interface RenderedOutlineNode {
+	heading: ParsedHeading;
+	itemEl: HTMLLIElement;
+	linkEl: HTMLAnchorElement;
+	contextualListEl: HTMLUListElement | null;
+}
+
 export class FloatingOutlineController {
 	private readonly plugin: QuickHeadingPalettePlugin;
 	private rootEl: HTMLElement | null = null;
@@ -16,7 +23,9 @@ export class FloatingOutlineController {
 	private renderedHeadings: ParsedHeading[] = [];
 	private enabledLevels = new Set<HeadingLevel>();
 	private linkByHeadingId = new Map<string, HTMLAnchorElement>();
+	private nodeByHeadingId = new Map<string, RenderedOutlineNode>();
 	private activeHeadingId: string | null = null;
+	private expandedHeadingId: string | null = null;
 	private sourceScrollEl: HTMLElement | null = null;
 	private previewScrollEl: HTMLElement | null = null;
 
@@ -56,7 +65,9 @@ export class FloatingOutlineController {
 		this.renderedHeadings = [];
 		this.enabledLevels.clear();
 		this.linkByHeadingId.clear();
+		this.nodeByHeadingId.clear();
 		this.activeHeadingId = null;
+		this.expandedHeadingId = null;
 
 		if (this.rootEl) {
 			this.rootEl.remove();
@@ -120,6 +131,8 @@ export class FloatingOutlineController {
 		this.listEl.replaceChildren();
 		this.renderedHeadings = headings;
 		this.linkByHeadingId.clear();
+		this.nodeByHeadingId.clear();
+		this.expandedHeadingId = null;
 		if (headings.length === 0) {
 			this.activeHeadingId = null;
 			return;
@@ -167,6 +180,12 @@ export class FloatingOutlineController {
 
 			li.appendChild(link);
 			this.linkByHeadingId.set(heading.id, link);
+			this.nodeByHeadingId.set(heading.id, {
+				heading,
+				itemEl: li,
+				linkEl: link,
+				contextualListEl: null,
+			});
 			target.list.appendChild(li);
 			target.lastItem = li;
 		}
@@ -316,6 +335,7 @@ export class FloatingOutlineController {
 			if (nextId) {
 				this.linkByHeadingId.get(nextId)?.classList.add("is-active");
 			}
+			this.applyContextualChildren(heading);
 			return;
 		}
 
@@ -326,6 +346,7 @@ export class FloatingOutlineController {
 
 		this.activeHeadingId = nextId;
 		if (!nextId) {
+			this.applyContextualChildren(null);
 			return;
 		}
 
@@ -335,9 +356,173 @@ export class FloatingOutlineController {
 		}
 
 		link.classList.add("is-active");
+		this.applyContextualChildren(heading);
 		if (this.isOutlineVisible()) {
 			link.scrollIntoView({ block: "nearest", inline: "nearest" });
 		}
+	}
+
+	private applyContextualChildren(activeHeading: ParsedHeading | null): void {
+		if (!this.plugin.settings.floatingOutlineRevealChildren) {
+			this.setExpandedHeading(null);
+			return;
+		}
+
+		const expandableHeading = activeHeading ? this.getExpandableHeading(activeHeading) : null;
+		this.setExpandedHeading(expandableHeading);
+	}
+
+	private setExpandedHeading(heading: ParsedHeading | null): void {
+		const nextId = heading?.id ?? null;
+		if (this.expandedHeadingId === nextId) {
+			return;
+		}
+
+		if (this.expandedHeadingId) {
+			this.toggleContextualList(this.expandedHeadingId, false);
+		}
+
+		this.expandedHeadingId = nextId;
+		if (!nextId) {
+			return;
+		}
+
+		this.toggleContextualList(nextId, true);
+	}
+
+	private toggleContextualList(headingId: string, expanded: boolean): void {
+		const node = this.nodeByHeadingId.get(headingId);
+		if (!node) {
+			return;
+		}
+
+		const contextualList = this.ensureContextualList(node);
+		if (!contextualList) {
+			return;
+		}
+
+		node.itemEl.classList.toggle("is-expanded", expanded);
+		contextualList.classList.toggle("is-expanded", expanded);
+		contextualList.setAttribute("aria-hidden", expanded ? "false" : "true");
+	}
+
+	private ensureContextualList(node: RenderedOutlineNode): HTMLUListElement | null {
+		if (node.contextualListEl) {
+			return node.contextualListEl;
+		}
+
+		const children = this.getDirectHiddenChildren(node.heading);
+		if (children.length === 0) {
+			return null;
+		}
+
+		const list = document.createElement("ul");
+		list.className = "outline-plus-floating-outline__contextual-list";
+		list.setAttribute("aria-hidden", "true");
+
+		for (const child of children) {
+			const item = document.createElement("li");
+			item.className = "outline-plus-floating-outline__contextual-item";
+
+			const link = document.createElement("a");
+			link.className = "outline-plus-floating-outline__link outline-plus-floating-outline__link--contextual";
+			link.dataset.headingId = child.id;
+			link.href = "#";
+			link.textContent = child.text;
+			link.title = child.text;
+			link.addEventListener("click", (event) => {
+				event.preventDefault();
+				if (!this.activeView) {
+					return;
+				}
+				void jumpToHeading(this.plugin.app, this.activeView, child);
+			});
+
+			item.appendChild(link);
+			list.appendChild(item);
+		}
+
+		node.itemEl.appendChild(list);
+		node.contextualListEl = list;
+		return list;
+	}
+
+	private getExpandableHeading(activeHeading: ParsedHeading): ParsedHeading | null {
+		const visibleChain = this.getVisibleHeadingChain(activeHeading);
+		for (const candidate of visibleChain) {
+			if (candidate.level >= 6) {
+				continue;
+			}
+
+			const directChildLevel = (candidate.level + 1) as HeadingLevel;
+			if (this.enabledLevels.has(directChildLevel)) {
+				continue;
+			}
+
+			if (this.getDirectHiddenChildren(candidate).length > 0) {
+				return candidate;
+			}
+		}
+
+		return null;
+	}
+
+	private getVisibleHeadingChain(activeHeading: ParsedHeading): ParsedHeading[] {
+		const chain: ParsedHeading[] = [];
+		let targetLevel = activeHeading.level;
+
+		for (let index = this.allHeadings.findIndex((heading) => heading.id === activeHeading.id); index >= 0; index -= 1) {
+			const candidate = this.allHeadings[index];
+			if (!candidate || candidate.level > targetLevel) {
+				continue;
+			}
+
+			if (candidate.id === activeHeading.id || candidate.level < targetLevel) {
+				targetLevel = candidate.level;
+				if (this.enabledLevels.has(candidate.level)) {
+					chain.push(candidate);
+				}
+				if (targetLevel === 1) {
+					break;
+				}
+			}
+		}
+
+		return chain;
+	}
+
+	private getDirectHiddenChildren(parent: ParsedHeading): ParsedHeading[] {
+		if (parent.level >= 6) {
+			return [];
+		}
+
+		const childLevel = (parent.level + 1) as HeadingLevel;
+		if (this.enabledLevels.has(childLevel)) {
+			return [];
+		}
+
+		const parentIndex = this.allHeadings.findIndex((heading) => heading.id === parent.id);
+		if (parentIndex < 0) {
+			return [];
+		}
+
+		const children: ParsedHeading[] = [];
+		for (let index = parentIndex + 1; index < this.allHeadings.length; index += 1) {
+			const candidate = this.allHeadings[index];
+			if (!candidate) {
+				continue;
+			}
+
+			if (candidate.level <= parent.level) {
+				break;
+			}
+
+			if (candidate.level === childLevel) {
+				children.push(candidate);
+			}
+		}
+
+		return children;
 	}
 
 	private isOutlineVisible(): boolean {

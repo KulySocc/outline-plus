@@ -127,6 +127,21 @@ export class HeadingPaletteSettingTab extends PluginSettingTab {
 		}
 
 		new Setting(containerEl)
+			.setName("Reveal direct children of active heading")
+			.setDesc(
+				"Smoothly show the direct child headings of the currently relevant section in the floating outline.",
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.floatingOutlineRevealChildren)
+					.onChange(async (value) => {
+						this.plugin.settings.floatingOutlineRevealChildren = value;
+						await this.plugin.saveSettings();
+						this.plugin.refreshFloatingOutline();
+					}),
+			);
+
+		new Setting(containerEl)
 			.setName("Position")
 			.setDesc("Choose where the floating outline appears.")
 			.addDropdown((dropdown) =>
