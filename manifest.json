@@ -1,7 +1,7 @@
 {
 	"id": "outline-plus",
 	"name": "Outline Plus",
-	"version": "1.0.2",
+	"version": "1.0.3",
 	"minAppVersion": "0.15.0",
 	"description": "Open a quick palette to search headings in the active note and jump instantly.",
 	"author": "KulySocc",
