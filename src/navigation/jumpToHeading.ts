@@ -11,6 +11,14 @@ export async function jumpToHeading(app: App, view: MarkdownView, item: ParsedHe
 	app.workspace.setActiveLeaf(view.leaf, { focus: true });
 
 	if (view.getMode() === "preview") {
+		const didUseNativeNavigation = await navigateInPreviewViaNativeLink(app, view, item, token);
+		if (token !== getNavigationToken(view)) {
+			return;
+		}
+		if (didUseNativeNavigation) {
+			return;
+		}
+
 		const didJump = await navigateInPreview(view, item, token);
 		if (token !== getNavigationToken(view)) {
 			return;
@@ -22,6 +30,66 @@ export async function jumpToHeading(app: App, view: MarkdownView, item: ParsedHe
 
 	navigateInSource(view, item.line);
 	flashSourceHeading(view, item);
+}
+
+async function navigateInPreviewViaNativeLink(
+	app: App,
+	view: MarkdownView,
+	item: ParsedHeading,
+	token: number,
+): Promise<boolean> {
+	const file = view.file;
+	if (!file) {
+		return false;
+	}
+
+	const linkpath = app.metadataCache.fileToLinktext(file, file.path, true);
+	const linktext = `${linkpath}#${item.text}`;
+	const previousScroll = view.previewMode?.getScroll() ?? null;
+
+	await app.workspace.openLinkText(linktext, file.path, false, { active: true });
+	if (token !== getNavigationToken(view)) {
+		return false;
+	}
+
+	await refinePreviewHeadingAlignment(view, item, token);
+	if (token !== getNavigationToken(view)) {
+		return false;
+	}
+
+	const nextScroll = view.previewMode?.getScroll() ?? null;
+	if (previousScroll === null || nextScroll === null) {
+		return true;
+	}
+
+	return Math.abs(nextScroll - previousScroll) > 1;
+}
+
+async function refinePreviewHeadingAlignment(
+	view: MarkdownView,
+	item: ParsedHeading,
+	token: number,
+): Promise<void> {
+	const previewRoot = view.previewMode?.containerEl;
+	if (!previewRoot) {
+		return;
+	}
+
+	const scrollContainer = getPreviewScrollContainer(previewRoot);
+	const maxAttempts = 5;
+	for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+		if (token !== getNavigationToken(view)) {
+			return;
+		}
+
+		const target = findPreviewHeadingElement(previewRoot, item);
+		if (target) {
+			alignPreviewTargetTop(target, scrollContainer);
+			return;
+		}
+
+		await delay(40);
+	}
 }
 
 function nextNavigationToken(view: MarkdownView): number {
@@ -121,6 +189,9 @@ function alignPreviewTargetTop(target: HTMLElement, scrollContainer: HTMLElement
 	alignTop();
 	window.requestAnimationFrame(alignTop);
 	window.setTimeout(alignTop, 24);
+	window.setTimeout(alignTop, 96);
+	window.setTimeout(alignTop, 220);
+	window.setTimeout(alignTop, 420);
 }
 
 function coarseScrollPreview(view: MarkdownView, scrollContainer: HTMLElement, targetLine: number): void {
