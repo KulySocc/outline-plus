@@ -24,8 +24,10 @@ export class FloatingOutlineController {
 	private enabledLevels = new Set<HeadingLevel>();
 	private linkByHeadingId = new Map<string, HTMLAnchorElement>();
 	private nodeByHeadingId = new Map<string, RenderedOutlineNode>();
+	private contextualLinkByHeadingId = new Map<string, HTMLAnchorElement>();
 	private activeHeadingId: string | null = null;
 	private expandedHeadingId: string | null = null;
+	private contextualActiveHeadingId: string | null = null;
 	private sourceScrollEl: HTMLElement | null = null;
 	private previewScrollEl: HTMLElement | null = null;
 
@@ -66,8 +68,10 @@ export class FloatingOutlineController {
 		this.enabledLevels.clear();
 		this.linkByHeadingId.clear();
 		this.nodeByHeadingId.clear();
+		this.contextualLinkByHeadingId.clear();
 		this.activeHeadingId = null;
 		this.expandedHeadingId = null;
+		this.contextualActiveHeadingId = null;
 
 		if (this.rootEl) {
 			this.rootEl.remove();
@@ -132,7 +136,9 @@ export class FloatingOutlineController {
 		this.renderedHeadings = headings;
 		this.linkByHeadingId.clear();
 		this.nodeByHeadingId.clear();
+		this.contextualLinkByHeadingId.clear();
 		this.expandedHeadingId = null;
+		this.contextualActiveHeadingId = null;
 		if (headings.length === 0) {
 			this.activeHeadingId = null;
 			return;
@@ -319,6 +325,7 @@ export class FloatingOutlineController {
 
 		if (!this.activeView || this.allHeadings.length === 0 || this.enabledLevels.size === 0) {
 			this.applyActiveHeading(null);
+			this.applyContextualActiveHeading(null);
 			return;
 		}
 
@@ -326,7 +333,9 @@ export class FloatingOutlineController {
 		const activeHeading = activeLine === null
 			? null
 			: resolveActiveHeadingForLevels(this.allHeadings, activeLine, this.enabledLevels);
+		const rawActiveHeading = activeLine === null ? null : this.findHeadingForLine(activeLine);
 		this.applyActiveHeading(activeHeading);
+		this.applyContextualActiveHeading(rawActiveHeading);
 	}
 
 	private applyActiveHeading(heading: ParsedHeading | null): void {
@@ -440,6 +449,7 @@ export class FloatingOutlineController {
 
 			item.appendChild(link);
 			list.appendChild(item);
+			this.contextualLinkByHeadingId.set(child.id, link);
 		}
 
 		node.itemEl.appendChild(list);
@@ -523,6 +533,64 @@ export class FloatingOutlineController {
 		}
 
 		return children;
+	}
+
+	private applyContextualActiveHeading(heading: ParsedHeading | null): void {
+		const nextHeading = heading ? this.findNearestContextualHeading(heading) : null;
+		const nextId = nextHeading?.id ?? null;
+		if (this.contextualActiveHeadingId === nextId) {
+			if (nextId) {
+				this.contextualLinkByHeadingId.get(nextId)?.classList.add("is-contextual-active");
+			}
+			return;
+		}
+
+		if (this.contextualActiveHeadingId) {
+			this.contextualLinkByHeadingId.get(this.contextualActiveHeadingId)?.classList.remove("is-contextual-active");
+		}
+
+		this.contextualActiveHeadingId = nextId;
+		if (!nextId) {
+			return;
+		}
+
+		this.contextualLinkByHeadingId.get(nextId)?.classList.add("is-contextual-active");
+	}
+
+	private findHeadingForLine(activeLine: number): ParsedHeading | null {
+		let activeHeading: ParsedHeading | null = null;
+		for (const heading of this.allHeadings) {
+			if (heading.line > activeLine) {
+				break;
+			}
+			activeHeading = heading;
+		}
+
+		return activeHeading;
+	}
+
+	private findNearestContextualHeading(heading: ParsedHeading): ParsedHeading | null {
+		const startIndex = this.allHeadings.findIndex((candidate) => candidate.id === heading.id);
+		if (startIndex < 0) {
+			return null;
+		}
+
+		for (let index = startIndex; index >= 0; index -= 1) {
+			const candidate = this.allHeadings[index];
+			if (!candidate) {
+				continue;
+			}
+
+			if (candidate.level > heading.level) {
+				continue;
+			}
+
+			if (this.contextualLinkByHeadingId.has(candidate.id)) {
+				return candidate;
+			}
+		}
+
+		return null;
 	}
 
 	private isOutlineVisible(): boolean {

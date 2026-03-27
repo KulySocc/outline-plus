@@ -208,6 +208,11 @@
 	border-radius: 4px;
 }
 
+.outline-plus-floating-outline .outline-plus-floating-outline__link.is-contextual-active {
+	color: var(--interactive-accent);
+	background: transparent;
+}
+
 .outline-plus-floating-outline__contextual-list {
 	margin-top: 2px;
 	margin-left: 12px;
