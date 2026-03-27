@@ -9,6 +9,7 @@ export interface HeadingPaletteSettings {
 	showH6: boolean;
 	searchHiddenHeadings: boolean;
 	floatingOutlineEnabled: boolean;
+	floatingOutlineRevealChildren: boolean;
 	floatingOutlineSide: "left" | "right";
 	floatingOutlineAlignment: "to-content" | "to-window";
 	floatingOutlineOpacity: number;
@@ -30,6 +31,7 @@ export const DEFAULT_SETTINGS: HeadingPaletteSettings = {
 	showH6: true,
 	searchHiddenHeadings: false,
 	floatingOutlineEnabled: true,
+	floatingOutlineRevealChildren: false,
 	floatingOutlineSide: "right",
 	floatingOutlineAlignment: "to-window",
 	floatingOutlineOpacity: 100,
