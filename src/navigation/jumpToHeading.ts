@@ -5,6 +5,8 @@ import type { ParsedHeading } from "../parsing/headings";
 const PREVIEW_FLASH_CLASS = "heading-palette-preview-flash";
 const SOURCE_FLASH_CLASS = "heading-palette-source-flash";
 const navigationTokenByView = new WeakMap<MarkdownView, number>();
+const recentSourceNavigationLineByView = new WeakMap<MarkdownView, { line: number; expiresAt: number }>();
+const RECENT_SOURCE_NAVIGATION_WINDOW_MS = 1200;
 
 export async function jumpToHeading(app: App, view: MarkdownView, item: ParsedHeading): Promise<void> {
 	const token = nextNavigationToken(view);
@@ -30,6 +32,20 @@ export async function jumpToHeading(app: App, view: MarkdownView, item: ParsedHe
 
 	navigateInSource(view, item.line);
 	flashSourceHeading(view, item);
+}
+
+export function getRecentSourceNavigationLine(view: MarkdownView): number | null {
+	const entry = recentSourceNavigationLineByView.get(view);
+	if (!entry) {
+		return null;
+	}
+
+	if (Date.now() > entry.expiresAt) {
+		recentSourceNavigationLineByView.delete(view);
+		return null;
+	}
+
+	return entry.line;
 }
 
 async function navigateInPreviewViaNativeLink(
@@ -108,6 +124,11 @@ function navigateInSource(view: MarkdownView, line: number): void {
 		new Notice("No active editor found.");
 		return;
 	}
+
+	recentSourceNavigationLineByView.set(view, {
+		line,
+		expiresAt: Date.now() + RECENT_SOURCE_NAVIGATION_WINDOW_MS,
+	});
 
 	const position: EditorPosition = { line, ch: 0 };
 	editor.setCursor(position);

@@ -1,4 +1,6 @@
+import { EditorView } from "@codemirror/view";
 import { MarkdownView } from "obsidian";
+import { getRecentSourceNavigationLine } from "./jumpToHeading";
 import type { HeadingLevel, ParsedHeading } from "../parsing/headings";
 
 const VIEWPORT_ANCHOR_OFFSET = 24;
@@ -7,7 +9,14 @@ export function getActiveDocumentLine(view: MarkdownView, headings: ParsedHeadin
 	if (view.getMode() === "preview") {
 		return getActiveLineFromPreview(view, headings) ?? getActiveLineFromCursor(view);
 	}
-	return getActiveLineFromSourceViewport(view) ?? getActiveLineFromCursor(view);
+
+	const recentNavigationLine = getRecentSourceNavigationLine(view);
+	const cursorLine = getActiveLineFromCursor(view);
+	if (recentNavigationLine !== null && cursorLine === recentNavigationLine) {
+		return recentNavigationLine;
+	}
+
+	return getActiveLineFromSourceViewport(view) ?? cursorLine;
 }
 
 export function resolveActiveHeadingForLevels(
@@ -98,6 +107,16 @@ function getActiveLineFromSourceViewport(view: MarkdownView): number | null {
 	const scroller = view.containerEl.querySelector<HTMLElement>(".cm-scroller");
 	if (!scroller) {
 		return null;
+	}
+
+	const editorRoot = view.containerEl.querySelector<HTMLElement>(".cm-editor");
+	if (editorRoot) {
+		const editorView = EditorView.findFromDOM(editorRoot);
+		if (editorView) {
+			const block = editorView.lineBlockAtHeight(scroller.scrollTop + VIEWPORT_ANCHOR_OFFSET);
+			const line = editorView.state.doc.lineAt(block.from);
+			return Math.max(0, line.number - 1);
+		}
 	}
 
 	const lineHeight = estimateSourceLineHeight(view);
